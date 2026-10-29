@@ -168,3 +168,29 @@ booking_changes  (id, booking_id, kind,              -- added | moved | cancelle
 **Cut for time:** `POST /bookings/{id}/no-show`. The rule itself still holds — the database keeps a no-show inside the clash checks, so it frees neither the room nor the slot — but marking one goes through a later commit.
 
 **Endpoint I rejected:** `PUT /bookings/{id}` (edit any field). It would let a move, a cancellation or a tutor swap silently overwrite what the tutor was told — exactly what the brief forbids — and it hides *which* change happened. Named actions (`move`, `cancel`) always write a change row.
+
+## 4. Reflect
+
+### What I would build next week
+- **A booking page for the receptionist**, designed around how she works today.
+- **F2, tutor's day with changes.** The change rows are already there. Next is a read-only page per tutor with the 16:00 version, every change since, and a "seen" button.
+- **Login with two roles:** the receptionist writes; tutors and the owner read.
+- **An owner override for the 6-a-day limit** (Q5), if he wants one.
+
+### Where it is weak
+- **Backend only.** Today only someone technical can use it, through Swagger. The receptionist cannot, until the page above is built.
+- **Students are matched by name.** Two children with the same name look like one student, and a typo creates a "new" one. Real student ids are the fix.
+- **The export's history is trusted as given.** L034 (tutor clash on 10 March) and L032 (a Monday) are reported but still in the schedule, so the receptionist must fix them by hand.
+- **"Who cancelled" in the export is a guess** from the note (A7).
+- **No no-show endpoint.** It was cut for time. No-show rows from the export still hold their room and slot.
+- **No 16:00 snapshot is stored.** "What the tutor was told" can be rebuilt from the change rows, but F1 does not show it.
+- **The seed command wipes the database.** If the API is running while you seed, its first request can fail once (Postgres error 57P01) and work on retry.
+- **One centre, local time only**, with no time zones.
+
+### Where AI helped
+- Drafting DECISIONS.md; I reviewed each section and rewrote unclear wording.
+- Writing code and tests commit by commit, each reviewed (design + QA) before I approved it.
+
+### One AI suggestion I rejected
+- **The AI built the opening-hours rule as "a lesson may end by 22:00".** I rejected it: the centre's day ends at 21:30 (A5, and L027 ends exactly at 21:30). A lesson starting at 21:00 for 60 minutes is now refused, and a test pins the 21:30 boundary.
+- **Earlier, the AI proposed one flag, "imported_rule_break", that exempted a bad history row from every clash rule.** Review showed it would let a new lesson into R2 at L034's time, a room clash, so the flag is now per rule.
