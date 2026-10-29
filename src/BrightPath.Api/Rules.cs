@@ -4,6 +4,8 @@ namespace BrightPath.Api;
 // "now", on counting, or that the centre may want to bend later lives here.
 public static class Rules
 {
+    public const int MaxLessonsPerDay = 6;
+
     public static bool ClosedDay(DateTime startsAt) => startsAt.DayOfWeek == DayOfWeek.Monday;
 
     // Lessons run 09:00 to 21:30 (A5: opening hours are what the export shows).

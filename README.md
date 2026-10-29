@@ -98,6 +98,19 @@ Cancel L014 (starts 10:30, "now" is 10:00 — inside 4h, past the cut-off) → `
 {"booking":{"id":"L014",...,"status":"cancelled","cancelledAt":"2026-03-05T10:00:00","cancelledBy":"family"},"change":{"bookingId":"L014","kind":"cancelled","changedAt":"2026-03-05T10:00:00","afterCutoff":true,"late":true}}
 ```
 
+## Code layout
+
+- `Program.cs` — app wiring: Postgres, pinned clock, Swagger, endpoints, the `seed` command.
+- `Domain.cs` — the four entities (tutor, room, booking, booking_change).
+- `Data.cs` — the EF Core DbContext and the CHECK constraints.
+- `Rules.cs` — the code-side rules (closed day, hours, cut-off, late) and constraint-name mapping.
+- `BookingService.cs` — all business logic; throws `RuleException`/`BadInputException`/`NotFoundException`.
+- `Endpoints.cs` — the five routes; turns those exceptions into 409/422/404.
+- `Requests.cs` — the request bodies.
+- `Errors.cs` — the three exception types.
+- `Seed.cs` — loads the export as given, flags history clashes, prints the import report.
+- `Migrations/` — the schema, the exclusion constraints, the six rooms.
+
 ## Troubleshooting
 
 - **`docker compose up` fails:** start the Docker daemon (or Docker Desktop) first.

@@ -5,6 +5,7 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddDbContext<BrightPathDb>(o =>
     o.UseNpgsql(builder.Configuration.GetConnectionString("Default"))
      .UseSnakeCaseNamingConvention());
+builder.Services.AddScoped<BookingService>();
 builder.Services.AddSingleton<IClock>(_ =>
     new PinnedClock(DateTime.Parse(builder.Configuration["Clock:Now"]!)));
 builder.Services.AddEndpointsApiExplorer();

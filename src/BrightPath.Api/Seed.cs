@@ -55,7 +55,7 @@ public static class Seed
 
         // Flag history clashes in file order: the later-added row carries the flag.
         var flags = new Dictionary<string, string>();
-        var occupied = rows.Where(r => r.Status != "cancelled").ToList();
+        var occupied = rows.Where(r => r.Status != BookingStatus.Cancelled).ToList();
         for (var i = 0; i < occupied.Count; i++)
             for (var j = 0; j < i; j++)
             {
@@ -74,7 +74,7 @@ public static class Seed
             TutorId = r.TutorId, RoomId = r.RoomId, StartsAt = r.Start,
             DurationMin = r.Duration, Status = r.Status,
             CancelledAt = r.CancelledAt,
-            CancelledBy = r.Status == "cancelled"
+            CancelledBy = r.Status == BookingStatus.Cancelled
                 ? (r.Note.Contains("tutor", StringComparison.OrdinalIgnoreCase) ? "centre" : "family")
                 : null,
             ImportedClash = flags.GetValueOrDefault(r.Id),
@@ -91,7 +91,7 @@ public static class Seed
             return string.Join('\n', report);
         }
 
-        foreach (var b in bookings.Where(b => b.Status == "cancelled"))
+        foreach (var b in bookings.Where(b => b.Status == BookingStatus.Cancelled))
             db.BookingChanges.Add(new BookingChange
             {
                 BookingId = b.Id, Kind = "cancelled",
@@ -111,7 +111,7 @@ public static class Seed
         foreach (var b in bookings.Where(b => b.StartsAt.DayOfWeek == DayOfWeek.Monday))
             report.Add($"{b.Id}: booked on a Monday ({b.StartsAt:yyyy-MM-dd})" +
                 (b.StartsAt > now ? " - FUTURE, receptionist must fix" : ""));
-        foreach (var g in bookings.Where(b => b.Status != "cancelled")
+        foreach (var g in bookings.Where(b => b.Status != BookingStatus.Cancelled)
                      .GroupBy(b => (b.TutorId, b.StartsAt.Date)).Where(g => g.Select(b => b.LessonId).Distinct().Count() > 6))
             report.Add($"{g.Key.TutorId}: {g.Select(b => b.LessonId).Distinct().Count()} lessons on {g.Key.Date:yyyy-MM-dd} (over the 6-a-day limit)");
         foreach (var g in bookings.GroupBy(b => b.LessonId).Where(g => g.Count() > 1))

@@ -2,6 +2,13 @@ using System.ComponentModel.DataAnnotations.Schema;
 
 namespace BrightPath.Api;
 
+public static class BookingStatus
+{
+    public const string Booked = "booked";
+    public const string Cancelled = "cancelled";
+    public const string NoShow = "no_show";
+}
+
 public class Tutor
 {
     public string Id { get; set; } = "";
@@ -23,7 +30,7 @@ public class Booking
     public string RoomId { get; set; } = "";
     public DateTime StartsAt { get; set; }
     public int DurationMin { get; set; }
-    public string Status { get; set; } = "booked";
+    public string Status { get; set; } = BookingStatus.Booked;
     public DateTime? CancelledAt { get; set; }
     public string? CancelledBy { get; set; }
     public string? ImportedClash { get; set; }
