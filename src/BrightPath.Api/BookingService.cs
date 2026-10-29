@@ -9,7 +9,7 @@ public class BookingService(BrightPathDb db, IClock clock)
 
     private IQueryable<Booking> Active => db.Bookings.Where(b => b.Status != BookingStatus.Cancelled);
 
-    public async Task<Booking> Book(CreateBookingRequest req)
+    public async Task<BookingResponse> Book(CreateBookingRequest req)
     {
         var now = clock.Now;
         if (string.IsNullOrWhiteSpace(req.StudentName))
@@ -35,10 +35,10 @@ public class BookingService(BrightPathDb db, IClock clock)
         });
         await SaveOrTranslate(student, slot.TutorId, slot.RoomId);
         await tx.CommitAsync();
-        return booking;
+        return booking.ToResponse();
     }
 
-    public async Task<(Booking Booking, BookingChange Change)> Move(string id, MoveRequest req)
+    public async Task<ChangeResult> Move(string id, MoveRequest req)
     {
         var now = clock.Now;
         var booking = await FindChangeable(id, "move");
@@ -68,10 +68,10 @@ public class BookingService(BrightPathDb db, IClock clock)
         db.BookingChanges.Add(change);
         await SaveOrTranslate(booking.StudentName, booking.TutorId, newRoom);
         await tx.CommitAsync();
-        return (booking, change);
+        return new ChangeResult(booking.ToResponse(), change.ToResponse());
     }
 
-    public async Task<(Booking Booking, BookingChange Change)> Cancel(string id, CancelRequest req)
+    public async Task<ChangeResult> Cancel(string id, CancelRequest req)
     {
         var now = clock.Now;
         if (req.CancelledBy is not ("family" or "centre"))
@@ -91,22 +91,23 @@ public class BookingService(BrightPathDb db, IClock clock)
         booking.CancelledBy = req.CancelledBy;
         db.BookingChanges.Add(change);
         await db.SaveChangesAsync();
-        return (booking, change);
+        return new ChangeResult(booking.ToResponse(), change.ToResponse());
     }
 
-    public async Task<List<Booking>> List(string? date, string? tutorId)
+    public async Task<List<BookingResponse>> List(string? date, string? tutorId)
     {
         if (!DateOnly.TryParse(date, out var d)) throw new BadInputException("date must be YYYY-MM-DD");
         var day = d.ToDateTime(TimeOnly.MinValue);
         var q = db.Bookings.Where(b => b.StartsAt >= day && b.StartsAt < day.AddDays(1));
         if (!string.IsNullOrWhiteSpace(tutorId)) q = q.Where(b => b.TutorId == tutorId);
-        return await q.OrderBy(b => b.StartsAt).ToListAsync();
+        return (await q.OrderBy(b => b.StartsAt).ToListAsync()).Select(b => b.ToResponse()).ToList();
     }
 
-    public async Task<List<BookingChange>> Changes(string id)
+    public async Task<List<ChangeResponse>> Changes(string id)
     {
         if (!await db.Bookings.AnyAsync(b => b.Id == id)) throw new NotFoundException();
-        return await db.BookingChanges.Where(c => c.BookingId == id).OrderBy(c => c.Id).ToListAsync();
+        var rows = await db.BookingChanges.Where(c => c.BookingId == id).OrderBy(c => c.Id).ToListAsync();
+        return rows.Select(c => c.ToResponse()).ToList();
     }
 
     private async Task<Slot> PairSlot(Guid lessonId)

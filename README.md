@@ -107,6 +107,8 @@ Cancel L014 (starts 10:30, "now" is 10:00 — inside 4h, past the cut-off) → `
 - `BookingService.cs` — all business logic; throws `RuleException`/`BadInputException`/`NotFoundException`.
 - `Endpoints.cs` — the five routes; turns those exceptions into 409/422/404.
 - `Requests.cs` — the request bodies.
+- `Responses.cs` — the response DTOs.
+- `Mapper.cs` — entity -> response DTO.
 - `Errors.cs` — the three exception types.
 - `Seed.cs` — loads the export as given, flags history clashes, prints the import report.
 - `Migrations/` — the schema, the exclusion constraints, the six rooms.

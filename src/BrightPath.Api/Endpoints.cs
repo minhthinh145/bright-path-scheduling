@@ -12,18 +12,10 @@ public static class Endpoints
             }));
 
         app.MapPost("/bookings/{id}/move", (string id, MoveRequest req, BookingService svc) =>
-            Run(async () =>
-            {
-                var (booking, change) = await svc.Move(id, req);
-                return Results.Ok(new { booking, change });
-            }));
+            Run(async () => Results.Ok(await svc.Move(id, req))));
 
         app.MapPost("/bookings/{id}/cancel", (string id, CancelRequest req, BookingService svc) =>
-            Run(async () =>
-            {
-                var (booking, change) = await svc.Cancel(id, req);
-                return Results.Ok(new { booking, change });
-            }));
+            Run(async () => Results.Ok(await svc.Cancel(id, req))));
 
         app.MapGet("/bookings", (string? date, string? tutorId, BookingService svc) =>
             Run(async () => Results.Ok(await svc.List(date, tutorId))));
