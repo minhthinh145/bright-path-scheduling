@@ -78,6 +78,7 @@ Pinned "now": **Thursday 2026-03-05 10:00** (inside the export week, 03–10 Mar
 - **A4. Cancelled lessons don't count toward the six-a-day limit; no-shows do.** Cancelling frees the slot; a no-show frees neither.
 - **A5. Opening hours are what the export shows:** Tuesday to Sunday, 09:00 to 21:30.
 - **A6. Pinned "today": Thursday 2026-03-05,** inside the export week. The tool uses this date, not the real clock.
+- **A7. Who cancelled in the export:** a cancellation whose note mentions the tutor (L017 "tutor sick") is the centre's; otherwise the family's.
 
 ## 2. Choosing what to build
 
@@ -99,6 +100,7 @@ Pinned "now": **Thursday 2026-03-05 10:00** (inside the export week, 03–10 Mar
 ### What I leave broken
 - Tutors still hear about late changes from the receptionist on WhatsApp. "I drove in for a cancelled lesson" can still happen until F2 is built.
 - No screen and no login: the receptionist uses the API through Swagger. No one-screen view for the owner, no charges, no free-slot offers, no automatic messages.
+- No no-show endpoint (cut for time). No-show rows from the export still hold their room and slot.
 - A cancellation sent at night still waits until the receptionist reads it in the morning (today the family messages the receptionist; letting families cancel in the tool would close this gap).
 
 ## 3. Design of F1
@@ -122,6 +124,11 @@ booking_changes  (id, booking_id, kind,              -- added | moved | cancelle
                   old_starts_at, old_room_id, new_starts_at, new_room_id,
                   changed_at, after_cutoff, late)    -- append-only, never updated
 ```
+
+- `bookings.period` is a generated start-to-end time range; the three clash rules compare it with "overlaps".
+- New booking ids continue the export's style from L035.
+- `lesson_id` is a generated id; a student who moves out of an exam pair gets a fresh one.
+- Student names are trimmed before saving, so "Le Minh Chau " and "Le Minh Chau" are the same student.
 
 ### A booking cancelled or moved after the tutor was told
 - **Cancel:** the row stays, `status = cancelled`, with `cancelled_at` and `cancelled_by`. Never deleted. Every change gets a `booking_changes` row; `after_cutoff = true` if it was made after 16:00 the day before.
