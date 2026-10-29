@@ -5,11 +5,11 @@ using Xunit;
 
 namespace BrightPath.Tests;
 
-[Collection("pg")]
+[Collection("schema")]
 public class SchemaTests
 {
-    private readonly PostgresFixture _fx;
-    public SchemaTests(PostgresFixture fx) => _fx = fx;
+    private readonly SchemaDb _fx;
+    public SchemaTests(SchemaDb fx) => _fx = fx;
 
     private static Booking Mk(string id, string student, string tutor, string room,
         DateTime start, int dur = 60, Guid? lesson = null, string status = "booked") => new()

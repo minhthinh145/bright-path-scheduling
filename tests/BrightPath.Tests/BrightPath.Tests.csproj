@@ -29,5 +29,6 @@
 
   <ItemGroup>
     <None Include="../../src/BrightPath.Api/appsettings.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="../../seed/*" Link="seed/%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>
