@@ -5,6 +5,8 @@ namespace BrightPath.Api;
 
 public record CreateBookingRequest(string? StudentName, string? TutorId, string? RoomId,
     DateTime? StartsAt, int? DurationMin, Guid? JoinLessonId);
+public record MoveRequest(DateTime? StartsAt, string? RoomId);
+public record CancelRequest(string? CancelledBy);
 
 public class RuleException : Exception
 {
@@ -19,7 +21,10 @@ public static class Endpoints
     public static void Map(WebApplication app)
     {
         app.MapPost("/bookings", Create);
+        app.MapPost("/bookings/{id}/move", Move);
+        app.MapPost("/bookings/{id}/cancel", Cancel);
         app.MapGet("/bookings", List);
+        app.MapGet("/bookings/{id}/changes", Changes);
     }
 
     internal static IResult Conflict(string code, string rule, string message) =>
@@ -140,6 +145,95 @@ public static class Endpoints
             await tx.RollbackAsync();
             return Wrap(ex, req.StudentName.Trim(), tutorId, roomId, start);
         }
+    }
+
+    private static async Task<IResult> Move(string id, MoveRequest req, BrightPathDb db, IClock clock)
+    {
+        var now = clock.Now;
+        var booking = await db.Bookings.FindAsync(id);
+        if (booking is null) return Results.NotFound();
+        if (booking.Status != "booked")
+            return Conflict("NOT_BOOKED", "only a booked lesson can move",
+                $"booking is {booking.Status}");
+        if (booking.StartsAt < now)
+            return Conflict("IN_PAST", "a lesson that has started cannot be changed",
+                $"lesson started {booking.StartsAt:yyyy-MM-dd HH:mm}");
+
+        var newStart = req.StartsAt ?? booking.StartsAt;
+        var newRoom = string.IsNullOrWhiteSpace(req.RoomId) ? booking.RoomId : req.RoomId;
+        if (!await db.Rooms.AnyAsync(r => r.Id == newRoom)) return Bad("unknown roomId");
+
+        try { CheckSlot(newStart, booking.DurationMin, now); }
+        catch (RuleException re) { return Conflict(re.Code, re.Rule, re.Message); }
+
+        await using var tx = await db.Database.BeginTransactionAsync();
+        try
+        {
+            await LockTutor(db, booking.TutorId);
+            // The mover leaves its lesson/pair, so count the new position as a new lesson.
+            if (await TutorLessonCount(db, booking.TutorId, newStart, booking.Id) >= 6)
+                return Conflict("TUTOR_DAY_FULL", "at most 6 lessons per tutor per day",
+                    $"tutor already has 6 lessons on {newStart:yyyy-MM-dd}");
+
+            var change = new BookingChange
+            {
+                BookingId = booking.Id, Kind = "moved",
+                OldStartsAt = booking.StartsAt, OldRoomId = booking.RoomId,
+                NewStartsAt = newStart, NewRoomId = newRoom,
+                ChangedAt = now,
+                // After cut-off on either day counts: the old day's tutor was already told.
+                AfterCutoff = Rules.AfterCutoff(booking.StartsAt, now) || Rules.AfterCutoff(newStart, now),
+            };
+            booking.StartsAt = newStart;
+            booking.RoomId = newRoom;
+            booking.LessonId = Guid.NewGuid();
+            db.BookingChanges.Add(change);
+            await db.SaveChangesAsync();
+            await tx.CommitAsync();
+            return Results.Ok(new { booking, change });
+        }
+        catch (DbUpdateException ex)
+        {
+            await tx.RollbackAsync();
+            return Wrap(ex, booking.StudentName, booking.TutorId, newRoom, newStart);
+        }
+    }
+
+    private static async Task<IResult> Cancel(string id, CancelRequest req, BrightPathDb db, IClock clock)
+    {
+        var now = clock.Now;
+        var booking = await db.Bookings.FindAsync(id);
+        if (booking is null) return Results.NotFound();
+        if (req.CancelledBy is not ("family" or "centre"))
+            return Bad("cancelledBy must be family or centre");
+        if (booking.Status != "booked")
+            return Conflict("NOT_BOOKED", "only a booked lesson can be cancelled",
+                $"booking is {booking.Status}");
+        if (booking.StartsAt < now)
+            return Conflict("IN_PAST", "a lesson that has started cannot be changed",
+                $"lesson started {booking.StartsAt:yyyy-MM-dd HH:mm}");
+
+        var afterCutoff = Rules.AfterCutoff(booking.StartsAt, now);
+        var late = Rules.Late(booking.StartsAt, now, req.CancelledBy);
+        booking.Status = "cancelled";
+        booking.CancelledAt = now;
+        booking.CancelledBy = req.CancelledBy;
+        var change = new BookingChange
+        {
+            BookingId = booking.Id, Kind = "cancelled",
+            OldStartsAt = booking.StartsAt, OldRoomId = booking.RoomId,
+            ChangedAt = now, AfterCutoff = afterCutoff, Late = late,
+        };
+        db.BookingChanges.Add(change);
+        await db.SaveChangesAsync();
+        return Results.Ok(new { booking, change });
+    }
+
+    private static async Task<IResult> Changes(string id, BrightPathDb db)
+    {
+        if (!await db.Bookings.AnyAsync(b => b.Id == id)) return Results.NotFound();
+        return Results.Ok(await db.BookingChanges
+            .Where(c => c.BookingId == id).OrderBy(c => c.Id).ToListAsync());
     }
 
     private static async Task<IResult> List(string? date, string? tutorId, BrightPathDb db)
