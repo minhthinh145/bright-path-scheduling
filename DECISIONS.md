@@ -78,3 +78,25 @@ Pinned "now": **Thursday 2026-03-05 10:00** (inside the export week, 03–10 Mar
 - **A4. Cancelled lessons don't count toward the six-a-day limit; no-shows do.** Cancelling frees the slot; a no-show frees neither.
 - **A5. Opening hours are what the export shows:** Tuesday to Sunday, 09:00 to 21:30.
 - **A6. Pinned "today": Thursday 2026-03-05,** inside the export week. The tool uses this date, not the real clock.
+
+## 2. Choosing what to build
+
+### Features this tool needs
+- **F1. Booking with rules:** the receptionist books, cancels or moves a lesson. The tool blocks any booking that puts a student in two lessons at once, a tutor in two rooms at once, or two lessons in one room. It also blocks Mondays and a seventh lesson for a tutor in one day. Exam pairs of two students are allowed. Changes made after 16:00 are saved as changes.
+- **F2. Tutor's day with changes:** each tutor sees the schedule he was given at 16:00, plus every change since then. He taps "seen" to confirm. The receptionist sees which tutors have not confirmed yet, so she knows who to call.
+- **F3. Today on one screen:** the owner opens the laptop and sees all of today's lessons, by room and hour, without scrolling.
+- **F4. Late-cancellation charges:** the tool applies the 4-hour rule: who pays, and whether the tutor is paid.
+- **F5. Free-slot offer:** when a lesson is cancelled, the tool suggests a family who could take the free slot.
+- **F6. Automatic messages:** the tool sends the tutor a WhatsApp or SMS when his day changes.
+
+### The one I build: F1 — Booking with rules
+- **It is the heart of the system.** It is the only place where a booking is made or changed, so it is the only place that can guarantee the owner's rule: a student in two places at once "can never happen again — if the system allows it, the system is broken."
+- **The other features depend on it.** F2, F3 and F5 all show or use bookings. If bookings can still clash, those screens show wrong information.
+- **It keeps what the tutor was told.** Late changes are saved as changes, not written over. That makes F2 a small next step.
+- **It takes the rules out of the receptionist's head.** In eight weeks she is on leave; whoever sits at the desk next gets a tool that refuses a clash instead of a sheet that allows one.
+- **It fits in the time.** A few clear rules, each easy to test, using the rule breaks already in the export.
+
+### What I leave broken
+- Tutors still hear about late changes from the receptionist on WhatsApp. "I drove in for a cancelled lesson" can still happen until F2 is built.
+- No screen and no login: the receptionist uses the API through Swagger. No one-screen view for the owner, no charges, no free-slot offers, no automatic messages.
+- A cancellation sent at night still waits until the receptionist reads it in the morning (today the family messages the receptionist; letting families cancel in the tool would close this gap).
