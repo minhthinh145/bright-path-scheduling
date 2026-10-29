@@ -100,3 +100,64 @@ Pinned "now": **Thursday 2026-03-05 10:00** (inside the export week, 03–10 Mar
 - Tutors still hear about late changes from the receptionist on WhatsApp. "I drove in for a cancelled lesson" can still happen until F2 is built.
 - No screen and no login: the receptionist uses the API through Swagger. No one-screen view for the owner, no charges, no free-slot offers, no automatic messages.
 - A cancellation sent at night still waits until the receptionist reads it in the morning (today the family messages the receptionist; letting families cancel in the tool would close this gap).
+
+## 3. Design of F1
+
+Stack: ASP.NET Core Web API + EF Core + PostgreSQL. No frontend.
+
+### Data model
+One row per student per lesson — the same shape as the export. An exam pair is two rows sharing one `lesson_id`.
+
+```text
+tutors           (id 'T1', name, subject)            -- phone column not loaded
+rooms            (id 'R1'..'R6')
+bookings         (id 'L001',                         -- one student in one lesson
+                  lesson_id,                         -- shared by the two students of an exam pair
+                  student_name, tutor_id, room_id,
+                  starts_at, duration_min,           -- CHECK duration_min IN (60, 90); end is calculated
+                  status,                            -- booked | cancelled | no_show
+                  cancelled_at, cancelled_by,        -- family | centre
+                  imported_clash)                    -- null, or student_clash / tutor_clash for history rows that broke that rule
+booking_changes  (id, booking_id, kind,              -- added | moved | cancelled
+                  old_starts_at, old_room_id, new_starts_at, new_room_id,
+                  changed_at, after_cutoff, late)    -- append-only, never updated
+```
+
+### A booking cancelled or moved after the tutor was told
+- **Cancel:** the row stays, `status = cancelled`, with `cancelled_at` and `cancelled_by`. Never deleted. Every change gets a `booking_changes` row; `after_cutoff = true` if it was made after 16:00 the day before.
+- **Move:** same booking, same id, new time or room; the change row keeps the old time and room. A move is per student: if one student of a pair moves, they leave the pair and get a new `lesson_id`. Moving a whole pair at once is not in F1.
+- **Added after 16:00:** a new booking plus a change row `added`.
+- The tutor's 16:00 version is never overwritten; changes are only added on top. F1 writes the change rows; showing the "as told" version to the tutor is F2.
+- **History from the export:** loaded as it is. L008 (student clash with L007, "added by phone") gets `imported_clash = student_clash`, and L034 (tutor clash with L033) gets `tutor_clash`. Each flag only lifts *the rule that row broke*: L034 still blocks room R2 on 10/03 09:00 for anyone else. L034 is after the pinned "now", so the import report lists it as **a future clash the receptionist must fix**. L032 (Monday) and T1's seventh lesson on 06/03 are listed in the import report. L005 and L017 get `cancelled` change rows from their `cancelled_at`.
+
+### Which rules live in the database, which in code — and why
+
+| Rule | Where | How |
+|---|---|---|
+| A student is never in two lessons at once | **Database** | Exclusion constraint: same student, overlapping time → refused |
+| A tutor is in one room at a time | **Database** | Exclusion constraint: same tutor, overlapping time, different lesson → refused |
+| A room holds one lesson at a time | **Database** | Exclusion constraint: same room, overlapping time, different lesson → refused (an exam pair shares one lesson, so it passes) |
+| Lessons are 60 or 90 minutes; status is booked / cancelled / no_show; a cancelled booking has a cancel time | **Database** | CHECK constraints |
+| Tutors and rooms must exist (six rooms) | **Database** | Foreign keys |
+| Closed on Monday; lessons between 09:00 and 21:30 | Code | Checked when booking or moving |
+| No more than 6 lessons per tutor per day | Code | Counts distinct `lesson_id` (a pair = one lesson), not cancelled, inside the same transaction as the insert, with that tutor's day locked |
+| An exam pair has at most 2 students, same tutor, room and time | Code | Checked when a student joins a lesson |
+| A change after 16:00 the day before is marked "after cut-off" | Code | Compared with the pinned "now" |
+| A family cancelling less than 4h before is marked "late" | Code | Compared with the pinned "now"; recorded only, billing is not built |
+| Only booked → cancelled, booked → no_show | Code | Checked in the cancel / no-show actions |
+
+**Why this split:** the database guards the rules that must never break, whoever writes the data — the three clash rules are the owner's "if the system allows it, the system is broken". Code holds the rules that depend on "now", on counting, or that the owner may want to bend later (Q5). Cancelled bookings are ignored by the clash constraints, and a flagged history row is ignored only by the constraint it broke; no-shows are not, because a no-show frees neither the room nor the slot.
+
+### API
+
+| Endpoint | Does | Answers |
+|---|---|---|
+| `POST /bookings` | Book a student (optional `joinLessonId` for an exam pair) | 201; 409 `{code, rule, message}` when a business rule refuses it (`STUDENT_CLASH`, `TUTOR_CLASH`, `ROOM_CLASH`, `CLOSED_DAY`, `OUTSIDE_HOURS`, `TUTOR_DAY_FULL`, `PAIR_FULL`); 422 when the input itself is malformed |
+| `POST /bookings/{id}/move` | New time and/or room, same booking | 200 + change, or 409 |
+| `POST /bookings/{id}/cancel` | `cancelledBy: family / centre` | 200 + change (shows `afterCutoff`, `late`) |
+| `GET /bookings?date=&tutorId=` | List one day's bookings | 200 |
+| `GET /bookings/{id}/changes` | The change history of a booking | 200 |
+
+**Cut for time:** `POST /bookings/{id}/no-show`. The rule itself still holds — the database keeps a no-show inside the clash checks, so it frees neither the room nor the slot — but marking one goes through a later commit.
+
+**Endpoint I rejected:** `PUT /bookings/{id}` (edit any field). It would let a move, a cancellation or a tutor swap silently overwrite what the tutor was told — exactly what the brief forbids — and it hides *which* change happened. Named actions (`move`, `cancel`) always write a change row.
