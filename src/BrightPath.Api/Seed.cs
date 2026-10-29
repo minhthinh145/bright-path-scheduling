@@ -97,9 +97,8 @@ public static class Seed
                 BookingId = b.Id, Kind = "cancelled",
                 OldStartsAt = b.StartsAt, OldRoomId = b.RoomId,
                 ChangedAt = b.CancelledAt!.Value,
-                AfterCutoff = b.CancelledAt.Value > b.StartsAt.Date.AddDays(-1).AddHours(16),
-                Late = b.CancelledBy == "family"
-                    && (b.StartsAt - b.CancelledAt.Value) < TimeSpan.FromHours(4),
+                AfterCutoff = Rules.AfterCutoff(b.StartsAt, b.CancelledAt.Value),
+                Late = Rules.Late(b.StartsAt, b.CancelledAt.Value, b.CancelledBy!),
             });
         await db.SaveChangesAsync();
 

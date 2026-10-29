@@ -13,14 +13,14 @@ public abstract class PostgresFixture : IAsyncLifetime
         Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "seed"));
 
     protected abstract string DbName { get; }
-    private string Cs =>
+    public string ConnString =>
         $"Host=localhost;Port=5433;Database={DbName};Username=postgres;Password=postgres";
 
     public BrightPathDb CreateDb() =>
         new(new DbContextOptionsBuilder<BrightPathDb>()
-            .UseNpgsql(Cs).UseSnakeCaseNamingConvention().Options);
+            .UseNpgsql(ConnString).UseSnakeCaseNamingConvention().Options);
 
-    public async Task InitializeAsync()
+    public virtual async Task InitializeAsync()
     {
         await using var admin = new NpgsqlConnection(Admin);
         await admin.OpenAsync();

@@ -21,6 +21,7 @@ if (args is ["seed", ..])
 app.UseSwagger();
 app.UseSwaggerUI();
 app.MapGet("/health", () => Results.Ok("ok"));
+Endpoints.Map(app);
 app.Run();
 
 public partial class Program { }
