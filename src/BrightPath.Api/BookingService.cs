@@ -182,9 +182,8 @@ public class BookingService(BrightPathDb db, IClock clock)
     private static RuleException Translate(DbUpdateException ex, string student,
         string tutorId, string roomId)
     {
-        for (Exception? e = ex; e != null; e = e.InnerException)
-            if (e is PostgresException pg && pg.SqlState == "23P01"
-                && Rules.ConstraintInfo(pg.ConstraintName ?? "") is { } info)
+        if (ex.InnerException is PostgresException { SqlState: PostgresErrorCodes.ExclusionViolation } pg
+            && Rules.ConstraintInfo(pg.ConstraintName ?? "") is { } info)
                 return new RuleException(info.Code, info.Rule, info.Code switch
                 {
                     "STUDENT_CLASH" => $"{student} already has a lesson at that time",
